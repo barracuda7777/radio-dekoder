@@ -1,0 +1,1680 @@
+<!DOCTYPE html>
+<html lang="hu" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Mode Rádió Dekóder Pro - WEFAX, SSTV & Morze (CW)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        radio: {
+                            900: '#0b1120',
+                            800: '#151f32',
+                            700: '#1e2d4a',
+                            600: '#2b3e64',
+                            accent: '#10b981',
+                            amber: '#f59e0b',
+                            cyan: '#06b6d4',
+                            danger: '#ef4444'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts & FontAwesome Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* Egyedi görgetősáv stílus rádió műszerfalhoz */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0b1120;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e2d4a;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #2b3e64;
+        }
+        /* Canvas raszter rács hatás */
+        .scanline-bg {
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 4px, 6px 100%;
+        }
+    </style>
+</head>
+<body class="bg-radio-900 text-slate-100 font-sans min-h-screen flex flex-col antialiased selection:bg-radio-accent selection:text-slate-900">
+
+    <!-- FEJLÉC & FŐ NAVIGÁCIÓ -->
+    <header class="bg-radio-800/90 border-b border-slate-700/60 sticky top-0 z-50 backdrop-blur-md px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            
+            <!-- Logo és Cím -->
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-lg bg-gradient-to-tr from-radio-accent to-radio-cyan flex items-center justify-center shadow-lg shadow-radio-accent/20">
+                    <i class="fa-solid fa-satellite-dish text-slate-900 text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-wide flex items-center gap-2">
+                        Multi-Mode Rádió Dekóder Pro
+                        <span class="text-xs font-mono font-normal bg-radio-accent/10 text-radio-accent border border-radio-accent/30 px-2 py-0.5 rounded-full">v3.0 Multi</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">WEFAX Időjárás-Fax, SSTV Képeslap & Élő Morze (CW) Dekóder</p>
+                </div>
+            </div>
+
+            <!-- Üzemmód Váltó (WEFAX / SSTV / CW) -->
+            <div class="flex items-center bg-slate-950/90 p-1 rounded-xl border border-slate-700/80 shadow-inner">
+                <button id="modeBtnWefax" class="mode-tab active px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition bg-radio-accent text-slate-950 shadow">
+                    <i class="fa-solid fa-cloud-sun-rain"></i>
+                    <span>WEFAX Fax</span>
+                </button>
+                <button id="modeBtnSstv" class="mode-tab px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition text-slate-400 hover:text-slate-100">
+                    <i class="fa-solid fa-image"></i>
+                    <span>SSTV Kép</span>
+                </button>
+                <button id="modeBtnCw" class="mode-tab px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition text-slate-400 hover:text-slate-100">
+                    <i class="fa-solid fa-tower-broadcast"></i>
+                    <span>Morze (CW)</span>
+                </button>
+            </div>
+
+            <!-- Státusz visszajelzők -->
+            <div class="flex items-center gap-3 text-xs font-mono">
+                <div id="statusBadge" class="flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-md border border-slate-700/60">
+                    <span class="w-2.5 h-2.5 rounded-full bg-slate-500 animate-pulse" id="statusDot"></span>
+                    <span id="statusText" class="text-slate-300">Várakozás...</span>
+                </div>
+                <div class="hidden sm:flex items-center gap-2 bg-slate-900/80 px-3 py-1.5 rounded-md border border-slate-700/60">
+                    <i class="fa-solid fa-clock text-radio-cyan"></i>
+                    <span id="scanTimer">00:00:00</span>
+                </div>
+            </div>
+
+            <!-- Fő Akciógombok -->
+            <div class="flex items-center gap-2">
+                <button id="btnMic" class="bg-radio-accent hover:bg-emerald-400 text-slate-950 font-semibold px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition shadow-lg shadow-radio-accent/20 active:scale-95">
+                    <i class="fa-solid fa-microphone"></i>
+                    <span>Mikrofon Indítása</span>
+                </button>
+                <button id="btnTest" class="bg-radio-amber hover:bg-amber-400 text-slate-950 font-semibold px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition shadow-lg shadow-radio-amber/20 active:scale-95">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>Tesztjel Generátor</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- FŐ MUNKATERÜLET -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- BAL OLDALI VEZÉRLŐPANEL (4 OSZLOP) -->
+        <aside class="lg:col-span-4 flex flex-col gap-5">
+            
+            <!-- 1. HANGOLÁSI MONITOR & FREKVENCIASPEKTRUM -->
+            <div class="bg-radio-800 border border-slate-700/60 rounded-xl p-4 shadow-xl">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-wave-square text-radio-cyan"></i>
+                        Rádióhangolás Monitor
+                    </h2>
+                    <span id="freqReadout" class="font-mono text-xs font-bold text-radio-cyan bg-radio-cyan/10 px-2 py-0.5 rounded border border-radio-cyan/20">
+                        ---- Hz
+                    </span>
+                </div>
+
+                <!-- Live FFT Spectrum Scope -->
+                <div class="relative w-full h-28 bg-slate-950 rounded-lg border border-slate-700 overflow-hidden mb-3">
+                    <canvas id="scopeCanvas" class="w-full h-full block"></canvas>
+                    <!-- Frekvencia Jelölők -->
+                    <div id="scopeLabels" class="absolute inset-x-0 bottom-1 flex justify-between px-2 text-[10px] font-mono pointer-events-none">
+                        <span class="text-slate-400">1000Hz</span>
+                        <span class="text-slate-200 font-bold border-b border-dashed border-slate-100">1500 (Fekete)</span>
+                        <span class="text-radio-amber font-bold">1900 (Közép)</span>
+                        <span class="text-radio-cyan font-bold border-b border-dashed border-radio-cyan">2300 (Fehér)</span>
+                        <span class="text-slate-400">3000Hz</span>
+                    </div>
+                </div>
+
+                <!-- Mikrofon Érzékenység & Zajzár -->
+                <div class="space-y-3 pt-1">
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">Bemeneti Erősítés (Gain):</span>
+                            <span id="gainVal" class="font-mono text-slate-200">1.0x</span>
+                        </div>
+                        <input type="range" id="gainSlider" min="0.1" max="4.0" step="0.1" value="1.0" class="w-full accent-radio-accent cursor-pointer">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">Zajzár Küszöb (Squelch):</span>
+                            <span id="squelchVal" class="font-mono text-slate-200">Off</span>
+                        </div>
+                        <input type="range" id="squelchSlider" min="0" max="0.05" step="0.001" value="0.002" class="w-full accent-radio-accent cursor-pointer">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. DEKÓDOLÁSI BEÁLLÍTÁSOK (Mód-specifikus) -->
+            <div class="bg-radio-800 border border-slate-700/60 rounded-xl p-4 shadow-xl space-y-4">
+                <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-radio-amber"></i>
+                    <span id="settingsPanelTitle">WEFAX Dekódolási Paraméterek</span>
+                </h2>
+
+                <!-- WEFAX Specifikus Beállítások -->
+                <div id="wefaxControls" class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Sebesség (RPM):</label>
+                        <select id="rpmSelect" class="w-full bg-radio-900 border border-slate-700 rounded-lg text-xs font-mono px-2.5 py-2 text-slate-200 focus:outline-none focus:border-radio-accent">
+                            <option value="60">60 RPM (Lassú)</option>
+                            <option value="90">90 RPM</option>
+                            <option value="120" selected>120 RPM (Standard DWD)</option>
+                            <option value="240">240 RPM (Gyors)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Képszélesség (px):</label>
+                        <select id="widthSelect" class="w-full bg-radio-900 border border-slate-700 rounded-lg text-xs font-mono px-2.5 py-2 text-slate-200 focus:outline-none focus:border-radio-accent">
+                            <option value="1200">1200 px (Standard)</option>
+                            <option value="1800" selected>1800 px (IOC 576 High-Res)</option>
+                            <option value="2400">2400 px (Ultra-HD)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- SSTV Specifikus Beállítások -->
+                <div id="sstvControls" class="hidden space-y-3">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">SSTV Szabvány (Mód):</label>
+                        <select id="sstvModeSelect" class="w-full bg-radio-900 border border-slate-700 rounded-lg text-xs font-mono px-2.5 py-2 text-slate-200 focus:outline-none focus:border-radio-accent">
+                            <option value="martin1" selected>Martin M1 (Európa Standard - 114s)</option>
+                            <option value="scottie1">Scottie S1 (USA / DX Standard - 110s)</option>
+                            <option value="robot36">Robot 36 (Gyors - 36s)</option>
+                        </select>
+                    </div>
+                    <p class="text-[11px] text-slate-400 bg-radio-900/60 p-2 rounded border border-slate-700/50">
+                        <i class="fa-solid fa-info-circle text-radio-cyan mr-1"></i>
+                        Rövidhullámon: <strong>14230 kHz (USB)</strong> nappal, <strong>3730 kHz (LSB)</strong> este.
+                    </p>
+                </div>
+
+                <!-- Morze (CW) Specifikus Beállítások -->
+                <div id="cwControls" class="hidden space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Célhang (Pitch Hz):</label>
+                            <input type="number" id="cwPitchInput" value="700" min="400" max="1200" step="10" class="w-full bg-radio-900 border border-slate-700 rounded-lg text-xs font-mono px-2.5 py-2 text-slate-200">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Sebesség (WPM):</label>
+                            <select id="cwWpmSelect" class="w-full bg-radio-900 border border-slate-700 rounded-lg text-xs font-mono px-2.5 py-2 text-slate-200">
+                                <option value="auto" selected>Automatikus</option>
+                                <option value="12">12 WPM (Lassú)</option>
+                                <option value="18">18 WPM (Közepes)</option>
+                                <option value="25">25 WPM (Gyors)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between text-xs bg-radio-900/60 p-2 rounded border border-slate-700/50">
+                        <span class="text-slate-400">Aktuális jelállapot:</span>
+                        <span id="cwToneIndicator" class="font-mono font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400">CSEND</span>
+                    </div>
+                </div>
+
+                <!-- Automatikus Start/Stop jelzés -->
+                <div class="flex items-center justify-between p-2.5 bg-radio-900/60 rounded-lg border border-slate-700/50">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-robot text-radio-accent text-sm"></i>
+                        <span class="text-xs text-slate-300">Auto Start/Stop Érzékelő</span>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="autoSyncToggle" checked class="sr-only peer">
+                        <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-radio-accent"></div>
+                    </label>
+                </div>
+
+                <!-- Kézi Vezérlő Gombok -->
+                <div class="flex gap-2">
+                    <button id="btnManualSync" class="flex-1 bg-radio-700 hover:bg-radio-600 text-slate-200 text-xs font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2 border border-slate-600 transition">
+                        <i class="fa-solid fa-arrows-rotate"></i>
+                        <span>Új Kép Indítása</span>
+                    </button>
+                    <button id="btnClear" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs py-2 px-3 rounded-lg flex items-center justify-center gap-1 border border-slate-700 transition" title="Kép törlése">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 3. FINOMHANGOLÁS & KÉPKORREKCIÓ -->
+            <div class="bg-radio-800 border border-slate-700/60 rounded-xl p-4 shadow-xl space-y-4">
+                <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                    <i class="fa-solid fa-wand-magic-sparkles text-radio-accent"></i>
+                    Dőlés (Slant) & Vízszintes Szinkron
+                </h2>
+
+                <!-- Dőléskorrekció (Slant) -->
+                <div>
+                    <div class="flex justify-between items-center text-xs mb-1">
+                        <span class="text-slate-300 font-medium">Dőléskorrekció (Slant):</span>
+                        <span id="slantVal" class="font-mono text-radio-amber font-bold">0.000%</span>
+                    </div>
+                    <input type="range" id="slantSlider" min="-2.0" max="2.0" step="0.001" value="0" class="w-full accent-radio-amber cursor-pointer mb-2">
+                    
+                    <!-- Finomhangoló apró gombok -->
+                    <div class="grid grid-cols-5 gap-1 text-[11px] font-mono">
+                        <button id="slantMinusBig" class="bg-radio-900 hover:bg-slate-700 py-1 rounded border border-slate-700 text-slate-300 text-center">-0.10%</button>
+                        <button id="slantMinusSmall" class="bg-radio-900 hover:bg-slate-700 py-1 rounded border border-slate-700 text-slate-300 text-center">-0.01%</button>
+                        <button id="slantReset" class="bg-radio-900 hover:bg-slate-700 py-1 rounded border border-slate-700 text-radio-amber font-bold text-center">0.00%</button>
+                        <button id="slantPlusSmall" class="bg-radio-900 hover:bg-slate-700 py-1 rounded border border-slate-700 text-slate-300 text-center">+0.01%</button>
+                        <button id="slantPlusBig" class="bg-radio-900 hover:bg-slate-700 py-1 rounded border border-slate-700 text-slate-300 text-center">+0.10%</button>
+                    </div>
+                </div>
+
+                <!-- Vízszintes Fázis (Phase Shift) -->
+                <div>
+                    <div class="flex justify-between items-center text-xs mb-1">
+                        <span class="text-slate-300 font-medium">Vízszintes Fázis (Phase):</span>
+                        <span id="phaseVal" class="font-mono text-slate-300">0 px</span>
+                    </div>
+                    <input type="range" id="phaseSlider" min="0" max="1800" step="1" value="0" class="w-full accent-radio-cyan cursor-pointer">
+                    <p class="text-[11px] text-slate-400 mt-1">
+                        <i class="fa-solid fa-hand-pointer text-radio-cyan mr-1"></i>
+                        Tipp: Kattints közvetlenül a képre a keret szélének kijelöléséhez!
+                    </p>
+                </div>
+
+                <!-- Kontraszt, Fényerő és Színpaletta -->
+                <div class="pt-2 border-t border-slate-700/60 space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-400">Kontraszt:</span>
+                                <span id="contrastVal" class="font-mono text-slate-200">1.0</span>
+                            </div>
+                            <input type="range" id="contrastSlider" min="0.5" max="3.0" step="0.1" value="1.0" class="w-full accent-radio-accent cursor-pointer">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-400">Fényerő:</span>
+                                <span id="brightnessVal" class="font-mono text-slate-200">0</span>
+                            </div>
+                            <input type="range" id="brightnessSlider" min="-50" max="50" step="1" value="0" class="w-full accent-radio-accent cursor-pointer">
+                        </div>
+                    </div>
+
+                    <!-- Paletta Választó -->
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Megjelenítési Mód:</label>
+                        <select id="paletteSelect" class="w-full bg-radio-900 border border-slate-700 rounded-lg text-xs font-mono px-2.5 py-2 text-slate-200 focus:outline-none focus:border-radio-accent">
+                            <option value="grayscale" selected>Standard Szürkeárnyalatos</option>
+                            <option value="inverted">Invertált (Sötét háttér)</option>
+                            <option value="radar">Tengerészeti Radar / Hőtérkép</option>
+                            <option value="sepia">Klasszikus Pergamen Térkép</option>
+                        </select>
+                    </div>
+                </div>
+
+            </div>
+        </aside>
+        <!-- JOBB OLDALI MAIN DISPLAY CANVAS / TERMINAL (8 OSZLOP) -->
+        <section class="lg:col-span-8 flex flex-col gap-4">
+            
+            <!-- GRAFIKUS KÉPMEGJELENÍTŐ (WEFAX & SSTV MÓD) -->
+            <div id="imageViewerPanel" class="bg-radio-800 border border-slate-700/60 rounded-xl p-4 shadow-xl flex flex-col flex-1 min-h-[600px]">
+                
+                <!-- Canvas Eszköztár -->
+                <div class="flex flex-wrap justify-between items-center gap-3 mb-3 pb-3 border-b border-slate-700/60">
+                    <div class="flex items-center gap-3">
+                        <h2 id="viewerTitle" class="text-base font-bold text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-map text-radio-accent"></i>
+                            Időjárási Térkép Nézet (WEFAX)
+                        </h2>
+                        <span id="lineCounter" class="bg-radio-900 text-slate-300 font-mono text-xs px-2.5 py-1 rounded border border-slate-700">
+                            Sorok: 0 / 1200
+                        </span>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <!-- Nagyítás Vezérlő -->
+                        <div class="flex items-center bg-radio-900 border border-slate-700 rounded-lg p-0.5 text-xs font-mono">
+                            <button id="btnZoomOut" class="px-2 py-1 text-slate-400 hover:text-slate-100"><i class="fa-solid fa-minus"></i></button>
+                            <span id="zoomVal" class="px-2 text-slate-200">100%</span>
+                            <button id="btnZoomIn" class="px-2 py-1 text-slate-400 hover:text-slate-100"><i class="fa-solid fa-plus"></i></button>
+                            <button id="btnZoomFit" class="px-2 py-1 text-radio-cyan border-l border-slate-700 hover:bg-slate-800 rounded-r">Fit</button>
+                        </div>
+
+                        <!-- Kép Letöltése PNG-ként -->
+                        <button id="btnDownload" class="bg-radio-accent hover:bg-emerald-400 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition shadow-md shadow-radio-accent/10">
+                            <i class="fa-solid fa-download"></i>
+                            <span>PNG Mentés</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Canvas Görgethető Tartóedény -->
+                <div id="canvasViewport" class="flex-1 bg-slate-950 rounded-lg border border-slate-700 overflow-auto relative flex justify-center items-start p-2 scanline-bg min-h-[500px]">
+                    
+                    <!-- Aktív Szkennelő Sor Indikátor -->
+                    <div id="scanBeam" class="hidden absolute left-0 right-0 h-[2px] bg-radio-accent shadow-[0_0_8px_#10b981] z-10 pointer-events-none transition-all duration-75"></div>
+
+                    <!-- FŐ RAJZOLÓ CANVAS -->
+                    <canvas id="wefaxCanvas" width="1800" height="1200" class="block bg-white shadow-2xl transition-transform origin-top cursor-crosshair rounded-sm"></canvas>
+
+                    <!-- Kezdő Üdvözlő / Üres Állapot Overlay -->
+                    <div id="canvasOverlay" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-xs text-center p-6 z-20">
+                        <div class="w-16 h-16 rounded-full bg-radio-800 border border-slate-700 flex items-center justify-center text-radio-cyan text-3xl mb-4 shadow-xl">
+                            <i class="fa-solid fa-radio"></i>
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-200 mb-2">A Dekóder Várakozási Módjában van</h3>
+                        <p class="text-xs text-slate-400 max-w-md mb-6 leading-relaxed">
+                            Kattints a <strong class="text-radio-accent">"Mikrofon Indítása"</strong> gombra a rádióvevő élő hangjának feldolgozásához, vagy próbáld ki a beépített <strong class="text-radio-amber">"Tesztjel Generátort"</strong> az azonnali szimulációhoz!
+                        </p>
+                        <div class="flex flex-wrap gap-3 justify-center">
+                            <button onclick="document.getElementById('btnMic').click()" class="bg-radio-accent hover:bg-emerald-400 text-slate-950 font-semibold px-4 py-2 rounded-lg text-xs flex items-center gap-2 transition">
+                                <i class="fa-solid fa-microphone"></i> Mikrofon Használata
+                            </button>
+                            <button onclick="document.getElementById('btnTest').click()" class="bg-radio-amber hover:bg-amber-400 text-slate-950 font-semibold px-4 py-2 rounded-lg text-xs flex items-center gap-2 transition">
+                                <i class="fa-solid fa-play"></i> Tesztjel Indítása
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alsó Canvas Információs Sáv -->
+                <div class="flex justify-between items-center text-[11px] text-slate-400 mt-2 font-mono">
+                    <span id="canvasDimText">Képméret: 1800 x 1200 px</span>
+                    <span id="syncStatusText" class="text-radio-amber"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Nincs aktív szinkronjel</span>
+                </div>
+
+            </div>
+
+            <!-- MORZE (CW) TERMINÁL PANEL (CW MÓD) -->
+            <div id="cwTerminalPanel" class="hidden bg-radio-800 border border-slate-700/60 rounded-xl p-4 shadow-xl flex-col flex-1 min-h-[600px]">
+                <div class="flex flex-wrap justify-between items-center gap-3 mb-3 pb-3 border-b border-slate-700/60">
+                    <div class="flex items-center gap-3">
+                        <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-terminal text-radio-accent"></i>
+                            Élő Morze (CW) Szövegdekóder
+                        </h2>
+                        <span id="cwWpmReadout" class="bg-radio-900 text-radio-cyan font-mono text-xs px-2.5 py-1 rounded border border-slate-700">
+                            Sebesség: ~18 WPM
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="btnCopyCw" class="bg-radio-700 hover:bg-radio-600 text-slate-200 font-medium px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 border border-slate-600 transition">
+                            <i class="fa-solid fa-copy"></i>
+                            <span>Másolás</span>
+                        </button>
+                        <button id="btnClearCw" class="bg-radio-danger/80 hover:bg-radio-danger text-white font-medium px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition">
+                            <i class="fa-solid fa-eraser"></i>
+                            <span>Törlés</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Morze jelek (ti-tá) élő sora -->
+                <div class="bg-slate-950 border border-slate-700 rounded-lg p-3 mb-3 font-mono text-sm text-radio-amber tracking-widest min-h-[44px] flex items-center justify-between">
+                    <span id="cwRawMorseBuffer">... --- ...</span>
+                    <span class="text-[10px] text-slate-500 uppercase">Aktuális karakter puffer</span>
+                </div>
+
+                <!-- Dekódolt szöveges kimenet -->
+                <div id="cwDecodedText" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg p-4 font-mono text-lg text-radio-accent leading-relaxed overflow-y-auto whitespace-pre-wrap select-all shadow-inner">Várakozás a morzejelekre (CW)... Indítsd el a mikrofont vagy a Tesztjel Generátort!</div>
+
+                <div class="mt-3 text-xs text-slate-400 flex flex-wrap justify-between gap-2 font-mono">
+                    <span>Ajánlott frekvenciák: 3500-3560 kHz, 7000-7040 kHz, 14000-14060 kHz (CW/USB)</span>
+                    <span>Hangolás: 600-800 Hz közötti sípolásra</span>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- RÁDIÓFREKVENCIÁS & HASZNÁLATI SEGÉDLET (FOOTER) -->
+    <footer class="bg-radio-800 border-t border-slate-700/60 mt-8 py-6 px-4">
+        <div class="max-w-7xl mx-auto space-y-6">
+            
+            <h2 class="text-sm font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-book-open text-radio-cyan"></i>
+                Keszthelyi Vételi Frekvencia Útmutató & Megosztási Segédlet
+            </h2>
+
+            <!-- Frekvencia Kártyák Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                
+                <div class="bg-radio-900 border border-slate-700/80 rounded-lg p-3.5 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-mono text-sm font-bold text-radio-accent">3853 / 7878 kHz</span>
+                            <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">WEFAX Fax (USB)</span>
+                        </div>
+                        <p class="text-xs text-slate-300">DWD Pinneberg Időjárás-térképek</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Este a 3853 kHz, nappal és este a 7878 kHz (USB) adja a legtisztább izobártérképeket.</p>
+                    </div>
+                </div>
+
+                <div class="bg-radio-900 border border-slate-700/80 rounded-lg p-3.5 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-mono text-sm font-bold text-radio-amber">14230 / 3730 kHz</span>
+                            <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">SSTV Színes Kép</span>
+                        </div>
+                        <p class="text-xs text-slate-300">Rádióamatőr Képeslapok (Martin M1)</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Nappal 14230 kHz (USB), este 3730 kHz (LSB) frekvencián küldenek egymásnak színes fotókat.</p>
+                    </div>
+                </div>
+
+                <div class="bg-radio-900 border border-slate-700/80 rounded-lg p-3.5 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-mono text-sm font-bold text-radio-cyan">7010 / 14030 kHz</span>
+                            <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">Morze (CW / USB)</span>
+                        </div>
+                        <p class="text-xs text-slate-300">Nemzetközi Morzeadások Dekódolása</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Hangold a sípolást 700 Hz környékére, és a Morze fül élőben szöveggé alakítja.</p>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Használati Lépések -->
+            <div class="bg-radio-900/60 border border-slate-700/50 rounded-lg p-4 text-xs text-slate-300 space-y-2 leading-relaxed">
+                <p><strong class="text-radio-accent">Hogyan futtasd és oszd meg másokkal?</strong> Ez az alkalmazás egyetlen önálló <code>index.html</code> fájlba van csomagolva. Ha lemented a gépedre vagy telefonodra, bármelyik böngészőben (Chrome, Edge, Safari) dupla kattintással azonnal elindul telepítés nélkül. Ha meg szeretnéd osztani bárkivel saját webcímen (linken), töltsd fel ingyenesen a <strong>Netlify Drop (app.netlify.com/drop)</strong> vagy a <strong>GitHub Pages</strong> oldalra, és azonnali HTTPS linket kapsz hozzá!</p>
+            </div>
+
+            <div class="text-center text-[11px] text-slate-500 pt-2 font-mono">
+                Multi-Mode Radio Decoder Pro &copy; 2026 - WEFAX / SSTV / CW Web Audio Engine
+            </div>
+        </div>
+    </footer>
+
+
+    <!-- INLINE JAVASCRIPT ALKALMAZÁS KÓD -->
+    <script>
+        /**
+         * MULTI-MODE RADIO DEKÓDER PRO - ENGINE & STATE (WEFAX + SSTV + CW)
+         */
+        (function() {
+            // Morze (CW) szótár
+            const MORSE_CODE = {
+                '.-': 'A', '-...': 'B', '-.-.': 'C', '-..': 'D', '.': 'E',
+                '..-.': 'F', '--.': 'G', '....': 'H', '..': 'I', '.---': 'J',
+                '-.-': 'K', '.-..': 'L', '--': 'M', '-.': 'N', '---': 'O',
+                '.--.': 'P', '--.-': 'Q', '.-.': 'R', '...': 'S', '-': 'T',
+                '..-': 'U', '...-': 'V', '.--': 'W', '-..-': 'X', '-.--': 'Y',
+                '--..': 'Z', '-----': '0', '.----': '1', '..---': '2', '...--': '3',
+                '....-': '4', '.....': '5', '-....': '6', '--...': '7', '---..': '8',
+                '----.': '9', '.-.-.-': '.', '--..--': ',', '..--..': '?', '-..-.': '/',
+                '-...-': '=', '.-.-.': '+'
+            };
+
+            // App Állapot
+            const state = {
+                activeMode: 'wefax', // 'wefax' | 'sstv' | 'cw'
+                isRunning: false,
+                isTestSignal: false,
+                audioCtx: null,
+                mediaStream: null,
+                audioSource: null,
+                analyserNode: null,
+                biquadFilter: null,
+                scriptProcessor: null,
+                testOscillator: null,
+                
+                // WEFAX & SSTV Szkenner paraméterek
+                rpm: 120,
+                sstvMode: 'martin1',
+                canvasWidth: 1800,
+                canvasHeight: 1200,
+                samplesPerLine: 0,
+                sampleRate: 44100,
+                
+                // Korrekciók
+                slant: 0,
+                phaseShift: 0,
+                contrast: 1.0,
+                brightness: 0,
+                palette: 'grayscale',
+                gain: 1.0,
+                squelch: 0.002,
+                autoSync: true,
+
+                // Sortervező puffer (WEFAX szürkeárnyalat, SSTV RGB sorok)
+                lineHistory: [], 
+                sstvHistory: [], // { r: Uint8Array, g: Uint8Array, b: Uint8Array }
+                currentLineBuffer: [],
+                currentLineIndex: 0,
+                startTime: 0,
+                scanTimerInterval: null,
+                zoomLevel: 1.0,
+
+                // CW (Morze) Állapot
+                cwPitch: 700,
+                cwDotLengthMs: 65, // ~18 WPM alapértelmezett
+                cwIsToneOn: false,
+                cwStateStartTime: 0,
+                cwCurrentSymbols: '',
+                cwDecodedOutput: ''
+            };
+
+            // DOM Elemek Hivatkozása
+            const dom = {
+                modeBtnWefax: document.getElementById('modeBtnWefax'),
+                modeBtnSstv: document.getElementById('modeBtnSstv'),
+                modeBtnCw: document.getElementById('modeBtnCw'),
+                settingsPanelTitle: document.getElementById('settingsPanelTitle'),
+                wefaxControls: document.getElementById('wefaxControls'),
+                sstvControls: document.getElementById('sstvControls'),
+                cwControls: document.getElementById('cwControls'),
+                scopeLabels: document.getElementById('scopeLabels'),
+                imageViewerPanel: document.getElementById('imageViewerPanel'),
+                cwTerminalPanel: document.getElementById('cwTerminalPanel'),
+                viewerTitle: document.getElementById('viewerTitle'),
+
+                btnMic: document.getElementById('btnMic'),
+                btnTest: document.getElementById('btnTest'),
+                statusBadge: document.getElementById('statusBadge'),
+                statusDot: document.getElementById('statusDot'),
+                statusText: document.getElementById('statusText'),
+                scanTimer: document.getElementById('scanTimer'),
+                freqReadout: document.getElementById('freqReadout'),
+                scopeCanvas: document.getElementById('scopeCanvas'),
+                wefaxCanvas: document.getElementById('wefaxCanvas'),
+                canvasViewport: document.getElementById('canvasViewport'),
+                canvasOverlay: document.getElementById('canvasOverlay'),
+                scanBeam: document.getElementById('scanBeam'),
+                
+                // Kontrollok
+                gainSlider: document.getElementById('gainSlider'),
+                gainVal: document.getElementById('gainVal'),
+                squelchSlider: document.getElementById('squelchSlider'),
+                squelchVal: document.getElementById('squelchVal'),
+                rpmSelect: document.getElementById('rpmSelect'),
+                widthSelect: document.getElementById('widthSelect'),
+                sstvModeSelect: document.getElementById('sstvModeSelect'),
+                cwPitchInput: document.getElementById('cwPitchInput'),
+                cwWpmSelect: document.getElementById('cwWpmSelect'),
+                cwToneIndicator: document.getElementById('cwToneIndicator'),
+                cwWpmReadout: document.getElementById('cwWpmReadout'),
+                cwRawMorseBuffer: document.getElementById('cwRawMorseBuffer'),
+                cwDecodedText: document.getElementById('cwDecodedText'),
+                btnCopyCw: document.getElementById('btnCopyCw'),
+                btnClearCw: document.getElementById('btnClearCw'),
+
+                autoSyncToggle: document.getElementById('autoSyncToggle'),
+                btnManualSync: document.getElementById('btnManualSync'),
+                btnClear: document.getElementById('btnClear'),
+                
+                slantSlider: document.getElementById('slantSlider'),
+                slantVal: document.getElementById('slantVal'),
+                slantMinusBig: document.getElementById('slantMinusBig'),
+                slantMinusSmall: document.getElementById('slantMinusSmall'),
+                slantReset: document.getElementById('slantReset'),
+                slantPlusSmall: document.getElementById('slantPlusSmall'),
+                slantPlusBig: document.getElementById('slantPlusBig'),
+
+                phaseSlider: document.getElementById('phaseSlider'),
+                phaseVal: document.getElementById('phaseVal'),
+                contrastSlider: document.getElementById('contrastSlider'),
+                contrastVal: document.getElementById('contrastVal'),
+                brightnessSlider: document.getElementById('brightnessSlider'),
+                brightnessVal: document.getElementById('brightnessVal'),
+                paletteSelect: document.getElementById('paletteSelect'),
+                
+                lineCounter: document.getElementById('lineCounter'),
+                canvasDimText: document.getElementById('canvasDimText'),
+                syncStatusText: document.getElementById('syncStatusText'),
+                btnZoomIn: document.getElementById('btnZoomIn'),
+                btnZoomOut: document.getElementById('btnZoomOut'),
+                btnZoomFit: document.getElementById('btnZoomFit'),
+                zoomVal: document.getElementById('zoomVal'),
+                btnDownload: document.getElementById('btnDownload')
+            };
+
+            const canvasCtx = dom.wefaxCanvas.getContext('2d');
+            const scopeCtx = dom.scopeCanvas.getContext('2d');
+
+            /**
+             * ÜZEMMÓD VÁLTÁSA (WEFAX / SSTV / CW)
+             */
+            function switchMode(newMode) {
+                if (state.isRunning) {
+                    if (state.isTestSignal) stopTestSignal();
+                    else stopAudioProcessing();
+                }
+
+                state.activeMode = newMode;
+                state.lineHistory = [];
+                state.sstvHistory = [];
+                state.currentLineBuffer = [];
+
+                // Gombok aktív állapota
+                [dom.modeBtnWefax, dom.modeBtnSstv, dom.modeBtnCw].forEach(btn => {
+                    btn.className = 'mode-tab px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition text-slate-400 hover:text-slate-100';
+                });
+
+                if (newMode === 'wefax') {
+                    dom.modeBtnWefax.className = 'mode-tab active px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition bg-radio-accent text-slate-950 shadow';
+                    dom.settingsPanelTitle.innerText = 'WEFAX Dekódolási Paraméterek';
+                    dom.wefaxControls.classList.remove('hidden');
+                    dom.sstvControls.classList.add('hidden');
+                    dom.cwControls.classList.add('hidden');
+                    dom.imageViewerPanel.classList.remove('hidden');
+                    dom.cwTerminalPanel.classList.add('hidden');
+                    dom.viewerTitle.innerHTML = `<i class="fa-solid fa-map text-radio-accent"></i> Időjárási Térkép Nézet (WEFAX)`;
+                    dom.scopeLabels.innerHTML = `
+                        <span class="text-slate-400">1000Hz</span>
+                        <span class="text-slate-200 font-bold border-b border-dashed border-slate-100">1500 (Fekete)</span>
+                        <span class="text-radio-amber font-bold">1900 (Közép)</span>
+                        <span class="text-radio-cyan font-bold border-b border-dashed border-radio-cyan">2300 (Fehér)</span>
+                        <span class="text-slate-400">3000Hz</span>
+                    `;
+                    state.canvasWidth = parseInt(dom.widthSelect.value, 10);
+                    dom.wefaxCanvas.width = state.canvasWidth;
+                    dom.wefaxCanvas.height = 1200;
+                } else if (newMode === 'sstv') {
+                    dom.modeBtnSstv.className = 'mode-tab active px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition bg-radio-cyan text-slate-950 shadow';
+                    dom.settingsPanelTitle.innerText = 'SSTV Színes Kép Paraméterek';
+                    dom.wefaxControls.classList.add('hidden');
+                    dom.sstvControls.classList.remove('hidden');
+                    dom.cwControls.classList.add('hidden');
+                    dom.imageViewerPanel.classList.remove('hidden');
+                    dom.cwTerminalPanel.classList.add('hidden');
+                    dom.viewerTitle.innerHTML = `<i class="fa-solid fa-image text-radio-cyan"></i> SSTV Színes Kép Nézet (320x256)`;
+                    dom.scopeLabels.innerHTML = `
+                        <span class="text-radio-danger font-bold">1200Hz (Sync)</span>
+                        <span class="text-slate-200 font-bold">1500 (Fekete)</span>
+                        <span class="text-radio-amber font-bold">1900 (Szürke)</span>
+                        <span class="text-radio-cyan font-bold">2300 (Fehér)</span>
+                    `;
+                    state.canvasWidth = 320;
+                    dom.wefaxCanvas.width = 320;
+                    dom.wefaxCanvas.height = 256;
+                } else if (newMode === 'cw') {
+                    dom.modeBtnCw.className = 'mode-tab active px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition bg-radio-amber text-slate-950 shadow';
+                    dom.settingsPanelTitle.innerText = 'Morze (CW) Dekóder Paraméterek';
+                    dom.wefaxControls.classList.add('hidden');
+                    dom.sstvControls.classList.add('hidden');
+                    dom.cwControls.classList.remove('hidden');
+                    dom.imageViewerPanel.classList.add('hidden');
+                    dom.cwTerminalPanel.classList.remove('hidden');
+                    dom.cwTerminalPanel.classList.add('flex');
+                    dom.scopeLabels.innerHTML = `
+                        <span class="text-slate-400">400Hz</span>
+                        <span class="text-radio-amber font-bold border-b border-dashed border-radio-amber">700Hz (Célhang)</span>
+                        <span class="text-slate-400">1200Hz</span>
+                    `;
+                }
+
+                dom.canvasDimText.innerText = `Képméret: ${dom.wefaxCanvas.width} x ${dom.wefaxCanvas.height} px`;
+                dom.lineCounter.innerText = `Sorok: 0 / ${dom.wefaxCanvas.height}`;
+                canvasCtx.fillStyle = '#0f172a';
+                canvasCtx.fillRect(0, 0, dom.wefaxCanvas.width, dom.wefaxCanvas.height);
+                recalcTiming();
+            }
+
+            // Web Audio API Inicializálás
+            function initAudioContext() {
+                if (!state.audioCtx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    state.audioCtx = new AudioCtx();
+                }
+                if (state.audioCtx.state === 'suspended') {
+                    state.audioCtx.resume();
+                }
+                state.sampleRate = state.audioCtx.sampleRate;
+                recalcTiming();
+            }
+
+            // Számított soridők recalculálása RPM / SSTV és Slant alapján
+            function recalcTiming() {
+                let secondsPerLine = 60 / state.rpm;
+                if (state.activeMode === 'sstv') {
+                    // Martin M1: ~0.44643s / sor, Scottie S1: ~0.4282s / sor, Robot 36: ~0.15s / sor
+                    if (state.sstvMode === 'martin1') secondsPerLine = 0.44643;
+                    else if (state.sstvMode === 'scottie1') secondsPerLine = 0.4282;
+                    else secondsPerLine = 0.15;
+                }
+                const baseSamples = state.sampleRate * secondsPerLine;
+                const slantMultiplier = 1.0 + (state.slant / 100);
+                state.samplesPerLine = baseSamples * slantMultiplier;
+            }
+
+            /**
+             * MIKROFON INDÍTÁSA / LEÁLLÍTÁSA
+             */
+            async function toggleMicrophone() {
+                if (state.isRunning && !state.isTestSignal) {
+                    stopAudioProcessing();
+                    return;
+                }
+
+                if (state.isTestSignal) {
+                    stopTestSignal();
+                }
+
+                initAudioContext();
+
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            echoCancellation: false,
+                            noiseSuppression: false,
+                            autoGainControl: false
+                        }
+                    });
+
+                    state.mediaStream = stream;
+                    state.audioSource = state.audioCtx.createMediaStreamSource(stream);
+                    startAudioPipeline();
+
+                    state.isRunning = true;
+                    state.isTestSignal = false;
+                    updateUIStatus('running', `Élő mikrofon (${state.activeMode.toUpperCase()})...`);
+                    dom.btnMic.innerHTML = `<i class="fa-solid fa-stop"></i> <span>Leállítás</span>`;
+                    dom.btnMic.classList.replace('bg-radio-accent', 'bg-radio-danger');
+                    dom.canvasOverlay.classList.add('hidden');
+                    if (state.activeMode === 'cw' && dom.cwDecodedText.innerText.startsWith('Várakozás')) {
+                        dom.cwDecodedText.innerText = '';
+                    }
+                    startTimer();
+
+                } catch (err) {
+                    showToast('Mikrofon Hiba', 'Nem sikerült hozzáférni a mikrofonhoz: ' + err.message, 'danger');
+                }
+            }
+
+            /**
+             * AUDIO PIPELINE (BANDPASS FILTER + DEMODULÁTOR)
+             */
+            function startAudioPipeline() {
+                state.biquadFilter = state.audioCtx.createBiquadFilter();
+                state.biquadFilter.type = 'bandpass';
+                const centerHz = state.activeMode === 'cw' ? state.cwPitch : 1850;
+                state.biquadFilter.frequency.setValueAtTime(centerHz, state.audioCtx.currentTime);
+                state.biquadFilter.Q.setValueAtTime(state.activeMode === 'cw' ? 3.5 : 1.1, state.audioCtx.currentTime);
+
+                state.analyserNode = state.audioCtx.createAnalyser();
+                state.analyserNode.fftSize = 512;
+
+                state.scriptProcessor = state.audioCtx.createScriptProcessor(1024, 1, 1);
+                
+                let lastSample = 0;
+                let lastZeroCross = 0;
+                let sampleIndexCounter = 0;
+                let smoothedFreq = centerHz;
+
+                state.scriptProcessor.onaudioprocess = function(e) {
+                    if (!state.isRunning) return;
+                    
+                    const input = e.inputBuffer.getChannelData(0);
+                    const len = input.length;
+                    const sr = state.sampleRate;
+
+                    if (state.activeMode === 'cw') {
+                        processCwAudioBlock(input, sr);
+                        return;
+                    }
+
+                    for (let i = 0; i < len; i++) {
+                        let sample = input[i] * state.gain;
+
+                        if (Math.abs(sample) < state.squelch) {
+                            sample = 0;
+                        }
+
+                        if ((lastSample <= 0 && sample > 0) || (lastSample >= 0 && sample < 0)) {
+                            const frac = -lastSample / (sample - lastSample);
+                            const exactCross = sampleIndexCounter - 1 + frac;
+                            const halfPeriod = exactCross - lastZeroCross;
+                            
+                            if (halfPeriod > 0) {
+                                const instFreq = sr / (halfPeriod * 2);
+                                if (instFreq >= 800 && instFreq <= 3200) {
+                                    smoothedFreq = smoothedFreq * 0.75 + instFreq * 0.25;
+                                }
+                            }
+                            lastZeroCross = exactCross;
+                        }
+                        lastSample = sample;
+                        sampleIndexCounter++;
+
+                        let val = (smoothedFreq - 1500) / (2300 - 1500);
+                        if (val < 0) val = 0;
+                        if (val > 1) val = 1;
+
+                        const pixelLuma = Math.round(val * 255);
+                        state.currentLineBuffer.push(pixelLuma);
+
+                        if (state.currentLineBuffer.length >= state.samplesPerLine) {
+                            if (state.activeMode === 'sstv') {
+                                processFinishedSstvLine(state.currentLineBuffer);
+                            } else {
+                                processFinishedLine(state.currentLineBuffer);
+                            }
+                            state.currentLineBuffer = [];
+                        }
+                    }
+                };
+
+                state.audioSource.connect(state.biquadFilter);
+                state.biquadFilter.connect(state.analyserNode);
+                state.analyserNode.connect(state.scriptProcessor);
+                state.scriptProcessor.connect(state.audioCtx.destination);
+
+                requestAnimationFrame(drawScope);
+            }
+
+            /**
+             * MORZE (CW) HANGFELDOLGOZÁS ÉS DEKÓDOLÁS
+             */
+            function processCwAudioBlock(samples, sr) {
+                let sumSq = 0;
+                for (let i = 0; i < samples.length; i++) {
+                    const s = samples[i] * state.gain;
+                    sumSq += s * s;
+                }
+                const rms = Math.sqrt(sumSq / samples.length);
+                const threshold = Math.max(0.015, state.squelch * 8);
+                const toneActive = rms > threshold;
+                const now = performance.now();
+
+                if (toneActive !== state.cwIsToneOn) {
+                    const duration = now - state.cwStateStartTime;
+                    if (state.cwStateStartTime > 0 && duration > 18) {
+                        if (state.cwIsToneOn) {
+                            // Hang vége -> pont (.) vagy vonás (-)
+                            const dotLen = state.cwDotLengthMs;
+                            if (duration < dotLen * 2.1) {
+                                state.cwCurrentSymbols += '.';
+                                if (dom.cwWpmSelect.value === 'auto') {
+                                    state.cwDotLengthMs = state.cwDotLengthMs * 0.8 + duration * 0.2;
+                                }
+                            } else {
+                                state.cwCurrentSymbols += '-';
+                            }
+                            dom.cwRawMorseBuffer.innerText = state.cwCurrentSymbols;
+                        } else {
+                            // Szünet vége -> betűköz vagy szóköz
+                            const dotLen = state.cwDotLengthMs;
+                            if (duration >= dotLen * 2.4 && state.cwCurrentSymbols.length > 0) {
+                                flushCwCharacter();
+                            }
+                            if (duration >= dotLen * 6.0) {
+                                appendCwText(' ');
+                            }
+                        }
+                    }
+                    state.cwIsToneOn = toneActive;
+                    state.cwStateStartTime = now;
+
+                    if (toneActive) {
+                        dom.cwToneIndicator.innerText = 'JEL (TONE)';
+                        dom.cwToneIndicator.className = 'font-mono font-bold px-2 py-0.5 rounded bg-radio-accent text-slate-950';
+                    } else {
+                        dom.cwToneIndicator.innerText = 'CSEND';
+                        dom.cwToneIndicator.className = 'font-mono font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400';
+                    }
+                } else if (!toneActive && state.cwCurrentSymbols.length > 0) {
+                    const silenceDuration = now - state.cwStateStartTime;
+                    if (silenceDuration > state.cwDotLengthMs * 3.2) {
+                        flushCwCharacter();
+                    }
+                }
+
+                const estWpm = Math.round(1200 / state.cwDotLengthMs);
+                dom.cwWpmReadout.innerText = `Sebesség: ~${estWpm} WPM`;
+            }
+
+            function flushCwCharacter() {
+                if (!state.cwCurrentSymbols) return;
+                const char = MORSE_CODE[state.cwCurrentSymbols] || '?';
+                appendCwText(char);
+                state.cwCurrentSymbols = '';
+                dom.cwRawMorseBuffer.innerText = '...';
+            }
+
+            function appendCwText(str) {
+                state.cwDecodedOutput += str;
+                dom.cwDecodedText.innerText = state.cwDecodedOutput;
+                dom.cwDecodedText.scrollTop = dom.cwDecodedText.scrollHeight;
+            }
+
+            /**
+             * SSTV SOR FELDOLGOZÁSA (Martin M1 / Scottie S1 G-B-R sorrend)
+             */
+            function processFinishedSstvLine(rawSamples) {
+                const targetW = 320;
+                const rLine = new Uint8Array(targetW);
+                const gLine = new Uint8Array(targetW);
+                const bLine = new Uint8Array(targetW);
+                const len = rawSamples.length;
+
+                // Martin M1 csatorna arányok egy soron belül: Sync (~2%) | Green (~32%) | Blue (~32%) | Red (~32%)
+                const gStart = Math.floor(len * 0.03);
+                const gEnd = Math.floor(len * 0.35);
+                const bStart = Math.floor(len * 0.36);
+                const bEnd = Math.floor(len * 0.68);
+                const rStart = Math.floor(len * 0.69);
+                const rEnd = Math.floor(len * 0.99);
+
+                for (let x = 0; x < targetW; x++) {
+                    const ratio = x / targetW;
+                    gLine[x] = rawSamples[gStart + Math.floor(ratio * (gEnd - gStart))] || 0;
+                    bLine[x] = rawSamples[bStart + Math.floor(ratio * (bEnd - bStart))] || 0;
+                    rLine[x] = rawSamples[rStart + Math.floor(ratio * (rEnd - rStart))] || 0;
+                }
+
+                const y = state.sstvHistory.length % 256;
+                state.sstvHistory[y] = { r: rLine, g: gLine, b: bLine };
+
+                const imgData = canvasCtx.createImageData(targetW, 1);
+                for (let x = 0; x < targetW; x++) {
+                    const idx = x * 4;
+                    imgData.data[idx] = rLine[x];
+                    imgData.data[idx + 1] = gLine[x];
+                    imgData.data[idx + 2] = bLine[x];
+                    imgData.data[idx + 3] = 255;
+                }
+                canvasCtx.putImageData(imgData, 0, y);
+                dom.lineCounter.innerText = `SSTV Sor: ${y + 1} / 256`;
+            }
+
+            /**
+             * LEÁLLÍTÁS
+             */
+            function stopAudioProcessing() {
+                state.isRunning = false;
+                if (state.mediaStream) {
+                    state.mediaStream.getTracks().forEach(t => t.stop());
+                    state.mediaStream = null;
+                }
+                if (state.scriptProcessor) {
+                    state.scriptProcessor.disconnect();
+                }
+                stopTimer();
+                updateUIStatus('stopped', 'Leállítva');
+                dom.btnMic.innerHTML = `<i class="fa-solid fa-microphone"></i> <span>Mikrofon Indítása</span>`;
+                dom.btnMic.classList.replace('bg-radio-danger', 'bg-radio-accent');
+                dom.scanBeam.classList.add('hidden');
+            }
+
+            /**
+             * EGY ELKÉSZÜLT WEFAX SOR FELDOLGOZÁSA & GRAFIKUS RAJZOLÁSA
+             */
+            function processFinishedLine(rawSamples) {
+                const targetW = state.canvasWidth;
+                const linePixels = new Uint8Array(targetW);
+                const rawLen = rawSamples.length;
+
+                // Mintavételezés & Átméretezés a belső canvas képszélességre
+                for (let x = 0; x < targetW; x++) {
+                    const srcIndex = Math.floor((x / targetW) * rawLen);
+                    linePixels[x] = rawSamples[srcIndex] || 0;
+                }
+
+                state.lineHistory.push(linePixels);
+                state.currentLineIndex = state.lineHistory.length - 1;
+
+                // Canvas magasság automatikus bővítése, ha túllépjük a keretet
+                if (state.lineHistory.length > dom.wefaxCanvas.height) {
+                    dom.wefaxCanvas.height = state.lineHistory.length + 200;
+                    renderAllLines(); // Újrarajzolás bővített mérettel
+                } else {
+                    renderSingleLine(state.currentLineIndex, linePixels);
+                }
+
+                // UI Frissítések
+                dom.lineCounter.innerText = `Sorok: ${state.lineHistory.length} / ${dom.wefaxCanvas.height}`;
+                
+                // Szkennelő fénynyaláb mozgatása
+                const lineY = state.currentLineIndex;
+                const canvasRect = dom.wefaxCanvas.getBoundingClientRect();
+                const viewportRect = dom.canvasViewport.getBoundingClientRect();
+                const scale = state.zoomLevel;
+                const beamY = (lineY * scale) - dom.canvasViewport.scrollTop;
+
+                if (beamY >= 0 && beamY <= viewportRect.height) {
+                    dom.scanBeam.style.top = `${beamY}px`;
+                    dom.scanBeam.classList.remove('hidden');
+                }
+            }
+
+            /**
+             * SINGLE LINE DRAWING (Gyors valós idejű kirajzolás)
+             */
+            function renderSingleLine(lineY, rawPixels) {
+                const imgData = canvasCtx.createImageData(state.canvasWidth, 1);
+                const data = imgData.data;
+                const w = state.canvasWidth;
+                const shift = Math.round((state.phaseShift / 100) * w);
+
+                for (let x = 0; x < w; x++) {
+                    // Vízszintes Fázis Eltolás (Phase Shift) számítása
+                    const srcX = (x + shift) % w;
+                    let luma = rawPixels[srcX];
+
+                    // Kontraszt és Fényerő korrekció
+                    luma = (luma - 128) * state.contrast + 128 + state.brightness;
+                    luma = Math.max(0, Math.min(255, luma));
+
+                    // Színpaletta transzformáció
+                    const rgb = applyPalette(luma);
+                    const idx = x * 4;
+                    data[idx] = rgb.r;
+                    data[idx + 1] = rgb.g;
+                    data[idx + 2] = rgb.b;
+                    data[idx + 3] = 255;
+                }
+
+                canvasCtx.putImageData(imgData, 0, lineY);
+            }
+
+            /**
+             * FULL RETROACTIVE RE-RENDER (Amikor a felhasználó Slant, Phase, Kontraszt vagy Palettát módosít)
+             */
+            function renderAllLines() {
+                if (state.lineHistory.length === 0) return;
+                
+                const w = state.canvasWidth;
+                const h = state.lineHistory.length;
+                const fullImgData = canvasCtx.createImageData(w, h);
+                const data = fullImgData.data;
+
+                const shiftRatio = state.phaseShift / 100;
+                const shiftPx = Math.round(shiftRatio * w);
+
+                for (let y = 0; y < h; y++) {
+                    const linePixels = state.lineHistory[y];
+                    const lineOffset = y * w * 4;
+
+                    for (let x = 0; x < w; x++) {
+                        const srcX = (x + shiftPx) % w;
+                        let luma = linePixels[srcX];
+
+                        // Kontraszt / Fényerő
+                        luma = (luma - 128) * state.contrast + 128 + state.brightness;
+                        luma = Math.max(0, Math.min(255, luma));
+
+                        const rgb = applyPalette(luma);
+                        const idx = lineOffset + (x * 4);
+                        data[idx] = rgb.r;
+                        data[idx + 1] = rgb.g;
+                        data[idx + 2] = rgb.b;
+                        data[idx + 3] = 255;
+                    }
+                }
+
+                canvasCtx.putImageData(fullImgData, 0, 0);
+            }
+
+            /**
+             * SZÍNPALETTA MÓDOK
+             */
+            function applyPalette(luma) {
+                if (state.palette === 'inverted') {
+                    const inv = 255 - luma;
+                    return { r: inv, g: inv, b: inv };
+                } else if (state.palette === 'radar') {
+                    // False-color weather radar (Kék -> Zöld -> Sárga -> Piros)
+                    if (luma < 64) {
+                        return { r: 0, g: Math.round(luma * 4), b: 180 };
+                    } else if (luma < 128) {
+                        return { r: 0, g: 255, b: Math.round(255 - (luma - 64) * 4) };
+                    } else if (luma < 192) {
+                        return { r: Math.round((luma - 128) * 4), g: 255, b: 0 };
+                    } else {
+                        return { r: 255, g: Math.round(255 - (luma - 192) * 4), b: 0 };
+                    }
+                } else if (state.palette === 'sepia') {
+                    return {
+                        r: Math.round(luma * 0.95),
+                        g: Math.round(luma * 0.85),
+                        b: Math.round(luma * 0.70)
+                    };
+                }
+                // Standard Grayscale
+                return { r: luma, g: luma, b: luma };
+            }
+
+            /**
+             * FREKVENCIA SPEKTRUM & TUNING SCOPE DRAWING
+             */
+            function drawScope() {
+                if (!state.isRunning || !state.analyserNode) return;
+
+                const bufferLength = state.analyserNode.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+                state.analyserNode.getByteFrequencyData(dataArray);
+
+                const w = dom.scopeCanvas.width = dom.scopeCanvas.clientWidth;
+                const h = dom.scopeCanvas.height = dom.scopeCanvas.clientHeight;
+
+                scopeCtx.fillStyle = '#0b1120';
+                scopeCtx.fillRect(0, 0, w, h);
+
+                // Rajzolás
+                const barWidth = (w / bufferLength) * 2.5;
+                let x = 0;
+                let maxFreqVal = 0;
+                let peakBin = 0;
+
+                for (let i = 0; i < bufferLength; i++) {
+                    const barHeight = (dataArray[i] / 255) * h;
+                    
+                    if (dataArray[i] > maxFreqVal) {
+                        maxFreqVal = dataArray[i];
+                        peakBin = i;
+                    }
+
+                    // Gradiens szín a frekvencia tartomány alapján
+                    const freqHz = (i * state.sampleRate) / (bufferLength * 2);
+                    if (freqHz >= 1450 && freqHz <= 1550) {
+                        scopeCtx.fillStyle = '#ffffff'; // Fekete jelölő (1500Hz)
+                    } else if (freqHz >= 1850 && freqHz <= 1950) {
+                        scopeCtx.fillStyle = '#f59e0b'; // Szürke/Sync (1900Hz)
+                    } else if (freqHz >= 2250 && freqHz <= 2350) {
+                        scopeCtx.fillStyle = '#06b6d4'; // Fehér jelölő (2300Hz)
+                    } else {
+                        scopeCtx.fillStyle = '#1e2d4a';
+                    }
+
+                    scopeCtx.fillRect(x, h - barHeight, barWidth, barHeight);
+                    x += barWidth + 1;
+                }
+
+                // Becsült pillanatnyi frekvencia kiírása
+                const currentPeakHz = Math.round((peakBin * state.sampleRate) / (bufferLength * 2));
+                if (maxFreqVal > 30) {
+                    dom.freqReadout.innerText = `${currentPeakHz} Hz`;
+                } else {
+                    dom.freqReadout.innerText = `---- Hz`;
+                }
+
+                requestAnimationFrame(drawScope);
+            }
+
+            /**
+             * BEÉPÍTETT WEFAX TESZTJEL GENERÁTOR (SZIMULÁCIÓ)
+             */
+            function startTestSignal() {
+                if (state.isRunning) {
+                    stopAudioProcessing();
+                }
+
+                initAudioContext();
+                state.isTestSignal = true;
+                state.isRunning = true;
+
+                updateUIStatus('running', `Tesztjel (${state.activeMode.toUpperCase()})...`);
+                dom.btnTest.classList.replace('bg-radio-amber', 'bg-radio-danger');
+                dom.btnTest.innerHTML = `<i class="fa-solid fa-stop"></i> <span>Teszt Leállítása</span>`;
+                dom.canvasOverlay.classList.add('hidden');
+                startTimer();
+
+                const sr = state.sampleRate;
+                const bufferSize = 2048;
+                state.scriptProcessor = state.audioCtx.createScriptProcessor(bufferSize, 1, 1);
+
+                // 1. MORZE (CW) TESZTJEL GENERÁTOR
+                if (state.activeMode === 'cw') {
+                    dom.cwDecodedText.innerText = '';
+                    state.cwDecodedOutput = '';
+                    const testMsg = 'CQ CQ CQ DE HA1KESTHELY XHDATA D808 WEFAX SSTV CW TEST K ';
+                    const revMorse = Object.fromEntries(Object.entries(MORSE_CODE).map(([k, v]) => [v, k]));
+                    const dotSamples = Math.floor(sr * 0.065);
+                    let cwTimeline = [];
+
+                    for (const ch of testMsg) {
+                        if (ch === ' ') {
+                            for (let k = 0; k < dotSamples * 6; k++) cwTimeline.push(0);
+                        } else if (revMorse[ch]) {
+                            const code = revMorse[ch];
+                            for (let s = 0; s < code.length; s++) {
+                                const dur = code[s] === '.' ? dotSamples : dotSamples * 3;
+                                for (let k = 0; k < dur; k++) cwTimeline.push(1);
+                                for (let k = 0; k < dotSamples; k++) cwTimeline.push(0);
+                            }
+                            for (let k = 0; k < dotSamples * 2; k++) cwTimeline.push(0);
+                        }
+                    }
+
+                    let cwCursor = 0;
+                    let phase = 0;
+                    state.scriptProcessor.onaudioprocess = function(e) {
+                        if (!state.isRunning) return;
+                        const output = e.outputBuffer.getChannelData(0);
+                        for (let i = 0; i < output.length; i++) {
+                            const active = cwTimeline[cwCursor % cwTimeline.length];
+                            cwCursor++;
+                            phase += (2 * Math.PI * state.cwPitch) / sr;
+                            output[i] = active ? Math.sin(phase) * 0.25 : 0;
+                        }
+                        processCwAudioBlock(output, sr);
+                    };
+                    state.scriptProcessor.connect(state.audioCtx.destination);
+                    return;
+                }
+
+                // 2. SSTV SZÍNES KÉP TESZTJEL GENERÁTOR
+                if (state.activeMode === 'sstv') {
+                    let sstvY = 0;
+                    let sstvPixelX = 0;
+                    let phase = 0;
+
+                    state.scriptProcessor.onaudioprocess = function(e) {
+                        if (!state.isRunning) return;
+                        const output = e.outputBuffer.getChannelData(0);
+                        const samplesPerLine = Math.floor(sr * 0.44643);
+
+                        for (let i = 0; i < output.length; i++) {
+                            const prog = sstvPixelX / samplesPerLine;
+                            let luma = 128;
+
+                            if (prog < 0.03) {
+                                luma = 0; // Sync
+                            } else if (prog < 0.35) {
+                                // Green csatorna (Balaton víz / tájkép)
+                                luma = sstvY > 130 ? Math.round(140 + Math.sin(prog * 40) * 40) : 60;
+                            } else if (prog < 0.68) {
+                                // Blue csatorna (Égbolt és víz)
+                                luma = sstvY <= 130 ? 230 : 190;
+                            } else {
+                                // Red csatorna (Naplemente és szöveg)
+                                const dist = Math.hypot((prog - 0.84) * 320, sstvY - 90);
+                                luma = dist < 35 ? 255 : (sstvY <= 130 ? 90 : 40);
+                            }
+
+                            const targetFreq = 1500 + (luma / 255) * 800;
+                            phase += (2 * Math.PI * targetFreq) / sr;
+                            output[i] = Math.sin(phase) * 0.2;
+
+                            state.currentLineBuffer.push(luma);
+                            sstvPixelX++;
+                            if (sstvPixelX >= samplesPerLine) {
+                                sstvPixelX = 0;
+                                sstvY = (sstvY + 1) % 256;
+                                processFinishedSstvLine(state.currentLineBuffer);
+                                state.currentLineBuffer = [];
+                            }
+                        }
+                    };
+                    state.scriptProcessor.connect(state.audioCtx.destination);
+                    return;
+                }
+
+                // 3. WEFAX TESZTJEL GENERÁTOR
+                let phase = 0;
+                let testLineY = 0;
+                let testPixelX = 0;
+                const totalTestLines = 600;
+
+                // Minta időjárási térkép generálása memóriában
+                const testMapCanvas = document.createElement('canvas');
+                testMapCanvas.width = state.canvasWidth;
+                testMapCanvas.height = totalTestLines;
+                const tCtx = testMapCanvas.getContext('2d');
+
+                // Háttér rajzolása (Európa térkép szimuláció izobárokkal)
+                tCtx.fillStyle = '#ffffff';
+                tCtx.fillRect(0, 0, testMapCanvas.width, totalTestLines);
+                
+                // Rácsvonalak
+                tCtx.strokeStyle = '#cccccc';
+                tCtx.lineWidth = 2;
+                for (let x = 0; x < testMapCanvas.width; x += 150) {
+                    tCtx.beginPath(); tCtx.moveTo(x, 0); tCtx.lineTo(x, totalTestLines); tCtx.stroke();
+                }
+                for (let y = 0; y < totalTestLines; y += 100) {
+                    tCtx.beginPath(); tCtx.moveTo(0, y); tCtx.lineTo(testMapCanvas.width, y); tCtx.stroke();
+                }
+
+                // Header Banner
+                tCtx.fillStyle = '#000000';
+                tCtx.fillRect(50, 20, testMapCanvas.width - 100, 70);
+                tCtx.fillStyle = '#ffffff';
+                tCtx.font = 'bold 36px monospace';
+                tCtx.fillText('DWD PINNEBERG WEFAX TEST SIGNAL - 3853 / 7878 / 13880 kHz', 80, 68);
+
+                // Izobárok & Ciklon/Anticiklon rajzok
+                tCtx.strokeStyle = '#000000';
+                tCtx.lineWidth = 5;
+                tCtx.beginPath();
+                tCtx.arc(500, 300, 180, 0, Math.PI * 2);
+                tCtx.arc(500, 300, 260, 0, Math.PI * 2);
+                tCtx.arc(1200, 350, 220, 0, Math.PI * 2);
+                tCtx.stroke();
+
+                tCtx.font = 'bold 48px sans-serif';
+                tCtx.fillStyle = '#000000';
+                tCtx.fillText('H (1028)', 430, 315);
+                tCtx.fillText('L (995)', 1140, 365);
+
+                // Szürkeárnyalat skála
+                for (let i = 0; i < 10; i++) {
+                    const shade = Math.round((i / 9) * 255);
+                    tCtx.fillStyle = `rgb(${shade},${shade},${shade})`;
+                    tCtx.fillRect(100 + i * 150, 480, 140, 60);
+                }
+
+                const mapImgData = tCtx.getImageData(0, 0, testMapCanvas.width, totalTestLines).data;
+
+                // Audio Generátor Ciklus
+                state.scriptProcessor.onaudioprocess = function(e) {
+                    if (!state.isRunning) return;
+                    const output = e.outputBuffer.getChannelData(0);
+                    const samplesPerLine = sr * (60 / state.rpm);
+                    const w = state.canvasWidth;
+
+                    for (let i = 0; i < output.length; i++) {
+                        // Kiszámítjuk, hogy a teszt kép melyik pixelénél járunk
+                        const lineProgress = testPixelX / samplesPerLine;
+                        const pixelX = Math.floor(lineProgress * w);
+                        
+                        let luma = 255;
+                        if (testLineY < totalTestLines) {
+                            const mapIdx = (testLineY * w + pixelX) * 4;
+                            luma = mapImgData[mapIdx] || 255;
+                        }
+
+                        // Phasing vonal szimuláció minden sor elején (fekete impulzus)
+                        if (lineProgress < 0.04) {
+                            luma = 0; // Black sync pulse
+                        }
+
+                        // Luma konvertálása WEFAX frekvenciává (1500Hz - 2300Hz)
+                        const targetFreq = 1500 + (luma / 255) * 800;
+                        
+                        phase += (2 * Math.PI * targetFreq) / sr;
+                        if (phase > 2 * Math.PI) phase -= 2 * Math.PI;
+
+                        const audioSample = Math.sin(phase) * 0.3;
+                        output[i] = audioSample;
+
+                        // Demodulátor táplálása a generált teszthanggal
+                        state.currentLineBuffer.push(luma);
+
+                        testPixelX++;
+                        if (testPixelX >= samplesPerLine) {
+                            testPixelX = 0;
+                            testLineY++;
+                            processFinishedLine(state.currentLineBuffer);
+                            state.currentLineBuffer = [];
+                        }
+                    }
+                };
+
+                state.scriptProcessor.connect(state.audioCtx.destination);
+            }
+
+            function stopTestSignal() {
+                state.isRunning = false;
+                state.isTestSignal = false;
+                if (state.scriptProcessor) {
+                    state.scriptProcessor.disconnect();
+                }
+                stopTimer();
+                updateUIStatus('stopped', 'Teszt leállítva');
+                dom.btnTest.classList.replace('bg-radio-danger', 'bg-radio-amber');
+                dom.btnTest.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> <span>Tesztjel Generátor</span>`;
+                dom.scanBeam.classList.add('hidden');
+            }
+
+            /**
+             * UI STATUS & UTILS
+             */
+            function updateUIStatus(type, message) {
+                dom.statusText.innerText = message;
+                if (type === 'running') {
+                    dom.statusDot.className = 'w-2.5 h-2.5 rounded-full bg-radio-accent animate-pulse';
+                    dom.syncStatusText.innerHTML = `<i class="fa-solid fa-circle-check text-radio-accent mr-1"></i> Aktív Vétel (120 RPM)`;
+                } else {
+                    dom.statusDot.className = 'w-2.5 h-2.5 rounded-full bg-slate-500';
+                    dom.syncStatusText.innerHTML = `<i class="fa-solid fa-circle-pause text-slate-400 mr-1"></i> Leállítva`;
+                }
+            }
+
+            function startTimer() {
+                state.startTime = Date.now();
+                clearInterval(state.scanTimerInterval);
+                state.scanTimerInterval = setInterval(() => {
+                    const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
+                    const hrs = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+                    const mins = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+                    const secs = String(elapsed % 60).padStart(2, '0');
+                    dom.scanTimer.innerText = `${hrs}:${mins}:${secs}`;
+                }, 1000);
+            }
+
+            function stopTimer() {
+                clearInterval(state.scanTimerInterval);
+            }
+
+            function showToast(title, body, type = 'info') {
+                // Egyszerű beépített értesítő toast
+                const toast = document.createElement('div');
+                toast.className = `fixed bottom-5 right-5 z-50 max-w-sm p-4 rounded-xl shadow-2xl border text-xs leading-relaxed transition-all duration-300 transform translate-y-10 opacity-0 ${
+                    type === 'danger' ? 'bg-red-950 border-red-700 text-red-200' : 'bg-radio-800 border-radio-accent text-slate-100'
+                }`;
+                toast.innerHTML = `<strong class="block font-bold text-sm mb-1">${title}</strong>${body}`;
+                document.body.appendChild(toast);
+
+                setTimeout(() => {
+                    toast.classList.remove('translate-y-10', 'opacity-0');
+                }, 10);
+
+                setTimeout(() => {
+                    toast.classList.add('opacity-0', 'translate-y-10');
+                    setTimeout(() => toast.remove(), 300);
+                }, 4000);
+            }
+
+            /**
+             * EVENT LISTENERS & BEÁLLÍTÁSOK KÖTÉSE
+             */
+            function bindEvents() {
+                // Üzemmód váltó gombok
+                dom.modeBtnWefax.addEventListener('click', () => switchMode('wefax'));
+                dom.modeBtnSstv.addEventListener('click', () => switchMode('sstv'));
+                dom.modeBtnCw.addEventListener('click', () => switchMode('cw'));
+
+                dom.sstvModeSelect.addEventListener('change', (e) => {
+                    state.sstvMode = e.target.value;
+                    recalcTiming();
+                });
+
+                dom.cwPitchInput.addEventListener('change', (e) => {
+                    state.cwPitch = parseInt(e.target.value, 10) || 700;
+                });
+
+                dom.cwWpmSelect.addEventListener('change', (e) => {
+                    if (e.target.value !== 'auto') {
+                        const wpm = parseInt(e.target.value, 10);
+                        state.cwDotLengthMs = 1200 / wpm;
+                    }
+                });
+
+                dom.btnCopyCw.addEventListener('click', () => {
+                    const text = dom.cwDecodedText.innerText;
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    showToast('Másolva', 'A dekódolt morze szöveg a vágólapra került!');
+                });
+
+                dom.btnClearCw.addEventListener('click', () => {
+                    state.cwDecodedOutput = '';
+                    state.cwCurrentSymbols = '';
+                    dom.cwDecodedText.innerText = '';
+                    dom.cwRawMorseBuffer.innerText = '...';
+                });
+
+                // Mikrofon és Teszt gombok
+                dom.btnMic.addEventListener('click', toggleMicrophone);
+                dom.btnTest.addEventListener('click', () => {
+                    if (state.isTestSignal) stopTestSignal();
+                    else startTestSignal();
+                });
+
+                // Gain & Squelch
+                dom.gainSlider.addEventListener('input', (e) => {
+                    state.gain = parseFloat(e.target.value);
+                    dom.gainVal.innerText = `${state.gain.toFixed(1)}x`;
+                });
+
+                dom.squelchSlider.addEventListener('input', (e) => {
+                    state.squelch = parseFloat(e.target.value);
+                    dom.squelchVal.innerText = state.squelch === 0 ? 'Off' : state.squelch.toFixed(3);
+                });
+
+                // RPM & Szélesség
+                dom.rpmSelect.addEventListener('change', (e) => {
+                    state.rpm = parseInt(e.target.value, 10);
+                    recalcTiming();
+                });
+
+                dom.widthSelect.addEventListener('change', (e) => {
+                    state.canvasWidth = parseInt(e.target.value, 10);
+                    dom.wefaxCanvas.width = state.canvasWidth;
+                    dom.canvasDimText.innerText = `Képméret: ${state.canvasWidth} x ${dom.wefaxCanvas.height} px`;
+                    renderAllLines();
+                });
+
+                // Slant (Dőléskorrekció) Controls
+                const updateSlantUI = (newVal) => {
+                    state.slant = parseFloat(newVal.toFixed(3));
+                    dom.slantSlider.value = state.slant;
+                    dom.slantVal.innerText = `${state.slant >= 0 ? '+' : ''}${state.slant.toFixed(3)}%`;
+                    recalcTiming();
+                    renderAllLines();
+                };
+
+                dom.slantSlider.addEventListener('input', (e) => updateSlantUI(parseFloat(e.target.value)));
+                dom.slantMinusBig.addEventListener('click', () => updateSlantUI(state.slant - 0.10));
+                dom.slantMinusSmall.addEventListener('click', () => updateSlantUI(state.slant - 0.01));
+                dom.slantReset.addEventListener('click', () => updateSlantUI(0));
+                dom.slantPlusSmall.addEventListener('click', () => updateSlantUI(state.slant + 0.01));
+                dom.slantPlusBig.addEventListener('click', () => updateSlantUI(state.slant + 0.10));
+
+                // Fázis (Phase Shift)
+                dom.phaseSlider.addEventListener('input', (e) => {
+                    state.phaseShift = parseInt(e.target.value, 10);
+                    dom.phaseVal.innerText = `${state.phaseShift} px`;
+                    renderAllLines();
+                });
+
+                // Kattintás a Canvas-ra a vízszintes fázis azonnali beállításához
+                dom.wefaxCanvas.addEventListener('click', (e) => {
+                    const rect = dom.wefaxCanvas.getBoundingClientRect();
+                    const clickX = e.clientX - rect.left;
+                    const clickRatio = clickX / rect.width;
+                    state.phaseShift = Math.round(clickRatio * 100);
+                    dom.phaseSlider.value = state.phaseShift;
+                    dom.phaseVal.innerText = `${state.phaseShift}% (${Math.round((state.phaseShift/100)*state.canvasWidth)}px)`;
+                    renderAllLines();
+                    showToast('Fázis Beállítva', `Új keretszél szinkronizálva a kattintás helyére (${state.phaseShift}%).`);
+                });
+
+                // Kontraszt / Fényerő / Paletta
+                dom.contrastSlider.addEventListener('input', (e) => {
+                    state.contrast = parseFloat(e.target.value);
+                    dom.contrastVal.innerText = state.contrast.toFixed(1);
+                    renderAllLines();
+                });
+
+                dom.brightnessSlider.addEventListener('input', (e) => {
+                    state.brightness = parseInt(e.target.value, 10);
+                    dom.brightnessVal.innerText = state.brightness;
+                    renderAllLines();
+                });
+
+                dom.paletteSelect.addEventListener('change', (e) => {
+                    state.palette = e.target.value;
+                    renderAllLines();
+                });
+
+                // Kép törlése & Új kép indítása
+                dom.btnClear.addEventListener('click', () => {
+                    state.lineHistory = [];
+                    canvasCtx.fillStyle = '#ffffff';
+                    canvasCtx.fillRect(0, 0, dom.wefaxCanvas.width, dom.wefaxCanvas.height);
+                    dom.lineCounter.innerText = `Sorok: 0 / ${dom.wefaxCanvas.height}`;
+                });
+
+                dom.btnManualSync.addEventListener('click', () => {
+                    state.lineHistory = [];
+                    state.currentLineBuffer = [];
+                    renderAllLines();
+                    showToast('Új Kép', 'A vászon törölve, az új kép szinkronizálása elindult.');
+                });
+
+                // Zoom Vezérlés
+                const updateZoom = (newZoom) => {
+                    state.zoomLevel = Math.max(0.4, Math.min(2.5, newZoom));
+                    dom.wefaxCanvas.style.transform = `scale(${state.zoomLevel})`;
+                    dom.zoomVal.innerText = `${Math.round(state.zoomLevel * 100)}%`;
+                };
+
+                dom.btnZoomIn.addEventListener('click', () => updateZoom(state.zoomLevel + 0.15));
+                dom.btnZoomOut.addEventListener('click', () => updateZoom(state.zoomLevel - 0.15));
+                dom.btnZoomFit.addEventListener('click', () => {
+                    const viewportW = dom.canvasViewport.clientWidth - 32;
+                    const fitZoom = viewportW / state.canvasWidth;
+                    updateZoom(fitZoom);
+                });
+
+                // PNG Kép Letöltése
+                dom.btnDownload.addEventListener('click', () => {
+                    if (state.lineHistory.length === 0) {
+                        showToast('Üres Képernyő', 'Még nincs menthető dekódolt kép!', 'danger');
+                        return;
+                    }
+
+                    // Létrehozunk egy pontos vágási canvas-t csak a lerajzolt sorokkal
+                    const cropCanvas = document.createElement('canvas');
+                    cropCanvas.width = state.canvasWidth;
+                    cropCanvas.height = state.lineHistory.length;
+                    const cropCtx = cropCanvas.getContext('2d');
+                    cropCtx.drawImage(dom.wefaxCanvas, 0, 0, state.canvasWidth, state.lineHistory.length, 0, 0, state.canvasWidth, state.lineHistory.length);
+
+                    const link = document.createElement('a');
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    link.download = `WEFAX_DWD_Map_${timestamp}.png`;
+                    link.href = cropCanvas.toDataURL('image/png');
+                    link.click();
+                    showToast('PNG Mentve', 'Az időjárási térkép sikeresen letöltve a számítógépedre!');
+                });
+            }
+
+            // Inicializálás az oldal betöltésekor
+            window.addEventListener('DOMContentLoaded', () => {
+                bindEvents();
+                recalcTiming();
+            });
+
+        })();
+    </script>
+</body>
+</html>
